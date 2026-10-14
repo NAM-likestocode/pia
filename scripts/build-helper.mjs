@@ -25,7 +25,8 @@ if (!bunTarget) throw new Error(`No Bun target for ${triple}`);
 const outDir = path.join(root, "src-tauri", "binaries");
 mkdirSync(outDir, { recursive: true });
 const outfile = path.join(outDir, `pia-helper-${triple}${triple.includes("windows") ? ".exe" : ""}`);
-const bun = path.join(root, "node_modules", ".bin", process.platform === "win32" ? "bun.exe" : "bun");
+// The bun package keeps its binary here on every platform (node_modules/.bin only has shims on Windows).
+const bun = path.join(root, "node_modules", "bun", "bin", "bun.exe");
 
 execFileSync(
   bun,
