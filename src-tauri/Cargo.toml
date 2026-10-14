@@ -1,0 +1,30 @@
+[package]
+name = "pia"
+version = "0.1.0"
+description = "Pia, a gentle AI helper"
+edition = "2021"
+license = "MIT"
+
+[lib]
+name = "pia_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+serde_json = "1"
+getrandom = "0.3"
+hex = "0.4"
+
+[target.'cfg(windows)'.dependencies]
+keyring = { version = "3", features = ["windows-native"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

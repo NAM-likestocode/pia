@@ -1,0 +1,69 @@
+# Builds the Windows installer when a version tag (v1.2.3) is pushed, signs the
+# update with the Tauri key, and publishes it as a GitHub release. Pia checks
+# releases/latest/download/latest.json and offers the "Jetzt aktualisieren" button.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Check tag matches package.json
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          test "v$version" = "$GITHUB_REF_NAME" || { echo "Tag $GITHUB_REF_NAME does not match package.json $version"; exit 1; }
+
+      - run: npm ci
+
+      - run: npm test
+
+      - run: npm run build:helper
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Pia ${{ github.ref_name }}
+          releaseBody: See CHANGELOG.md.
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+
+      # When update-policy.json raises minimumVersion, older copies of Pia only
+      # show the update button until she installs it.
+      - name: Add minimumVersion to latest.json
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download "$GITHUB_REF_NAME" --pattern latest.json --dir out
+          node -e "
+            const fs = require('fs');
+            const latest = JSON.parse(fs.readFileSync('out/latest.json', 'utf8'));
+            latest.minimumVersion = JSON.parse(fs.readFileSync('update-policy.json', 'utf8')).minimumVersion;
+            fs.writeFileSync('out/latest.json', JSON.stringify(latest, null, 2));
+          "
+          gh release upload "$GITHUB_REF_NAME" out/latest.json --clobber
